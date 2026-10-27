@@ -1,0 +1,137 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  SALES_REP
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdLeads  Lead[] @relation("LeadCreator")
+  assignedLeads Lead[] @relation("LeadAssignee")
+  role         Role     @default(SALES_REP)
+  deals        Deal[]
+  activities Activity[]
+  sessions RefreshSession[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+model Lead {
+  id           String     @id @default(cuid())
+  name         String
+  email        String?
+  phone        String?
+  company      String?
+  source       String?
+  status       LeadStatus @default(NEW)
+  notes        String?
+  deals        Deal[]
+  activities Activity[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  createdById  String
+  assignedToId String?
+
+  createdBy User  @relation("LeadCreator", fields: [createdById], references: [id])
+  assignedTo User? @relation("LeadAssignee", fields: [assignedToId], references: [id])
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([createdAt])
+}
+
+enum DealStage {
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+model Deal {
+  id          String    @id @default(cuid())
+  title       String
+  value       Decimal   @default(0) @db.Decimal(12, 2)
+  stage       DealStage @default(QUALIFICATION)
+  expectedCloseDate DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  leadId      String
+  ownerId     String
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  owner       User      @relation(fields: [ownerId], references: [id])
+
+  @@index([stage])
+  @@index([ownerId])
+  @@index([leadId])
+}
+
+enum ActivityType {
+  CALL
+  MEETING
+  EMAIL
+  TASK
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  type        ActivityType @default(TASK)
+  dueDate     DateTime?
+  completed   Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  leadId      String?
+  ownerId     String
+  lead        Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  owner       User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@index([leadId])
+  @@index([dueDate])
+  @@index([completed])
+}
+
+model RefreshSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
